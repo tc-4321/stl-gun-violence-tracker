@@ -916,6 +916,7 @@ function renderNotes(){
   $('badgeNotes').textContent=userNotes.length;
 }
 $('btnAddNote').addEventListener('click',()=>{
+  if(!requireEdit()) return;
   const loc=$('nLoc').value.trim(), note=$('nNote').value.trim();
   if(!loc && !note){ alert('Add at least a location or a note so the incident can be identified later.'); return; }
   userNotes.push({ id:'n'+Date.now()+Math.random().toString(36).slice(2,6), date:$('nDate').value, jurisdiction:$('nJur').value,
@@ -1035,10 +1036,19 @@ document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>
 ['fJur','fCas','fFrom','fTo'].forEach(id=>$(id).addEventListener('change',()=>{ syncChips(); refresh(); }));
 $('fSearch').addEventListener('input',refresh);
 $('tbody').addEventListener('change',e=>{
-  const care=e.target.closest('.care-box'); if(care){ careState[care.dataset.id]=care.checked; saveCare(); }
+  const care=e.target.closest('.care-box'); if(care){ if(!requireEdit()){ care.checked=!care.checked; return; } careState[care.dataset.id]=care.checked; saveCare(); }
 });
 
 // ---- incident editor ----
+let editUnlocked=false;
+function requireEdit(){
+  if(editUnlocked) return true;
+  const p=prompt('Enter the password to edit incidents:');
+  if(p===null) return false;
+  if(p==='change'){ editUnlocked=true; return true; }
+  alert('Incorrect password — editing is locked.');
+  return false;
+}
 let editingId=null;
 function openEditor(id){
   const base=INCIDENTS.find(r=>String(r.id)===String(id)); if(!base) return;
@@ -1053,7 +1063,7 @@ function openEditor(id){
   setTimeout(()=>$('eLoc').focus(),30);
 }
 function closeEditor(){ $('editOverlay').classList.remove('open'); editingId=null; }
-$('tbody').addEventListener('click',e=>{ const b=e.target.closest('[data-edit]'); if(!b) return; openEditor(b.dataset.edit); });
+$('tbody').addEventListener('click',e=>{ const b=e.target.closest('[data-edit]'); if(!b) return; if(!requireEdit()) return; openEditor(b.dataset.edit); });
 $('editClose').addEventListener('click',closeEditor);
 $('editCancel').addEventListener('click',closeEditor);
 $('editOverlay').addEventListener('click',e=>{ if(e.target===$('editOverlay')) closeEditor(); });
