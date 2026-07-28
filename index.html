@@ -189,6 +189,9 @@ tbody tr.fatal{background:linear-gradient(90deg,var(--fatal-soft),transparent 60
 .care-cell{text-align:center}
 .care-wrap{display:inline-flex;cursor:pointer}
 .care-box{width:17px;height:17px;accent-color:var(--accent);cursor:pointer}
+.nibrs-box{width:17px;height:17px;accent-color:#7b61a8;cursor:pointer}
+.flag-field{display:flex;gap:26px;align-items:center;flex-wrap:wrap}
+.flag-field label{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;font-size:.9rem}
 .no-results{padding:40px;text-align:center;color:var(--text-muted)}
 
 /* Notes */
@@ -412,7 +415,7 @@ footer{margin-top:26px;font-size:.76rem;color:var(--text-faint);text-align:cente
   <!-- LOG -->
   <div class="tabpanel" data-tab="log" role="tabpanel">
     <div class="section-title">Incident log</div>
-    <p class="section-sub">Click a column header to sort. Check <b>CARE</b> to flag incidents with a completed report — then click <b>💾 Save my changes</b> to bake your flags into the file so they travel with it across devices.</p>
+    <p class="section-sub">Click a column header to sort. Flag <b>CARE</b> and <b>NIBRS</b> right in the table, or inside <b>✏️ Edit</b> alongside your other corrections. Flags save on this device instantly; click <b>💾 Save my changes</b> to bake them into the file for publishing (or ask Claude to set them so they publish automatically).</p>
     <div class="tablewrap"><div class="table-scroll"><table id="tbl">
       <thead><tr>
         <th data-key="date">Date <span class="arrow">↕</span></th>
@@ -424,6 +427,7 @@ footer{margin-top:26px;font-size:.76rem;color:var(--text-faint);text-align:cente
         <th data-key="shot" class="num">Shot <span class="arrow">↕</span></th>
         <th data-key="victims" class="num hide-sm">Struck <span class="arrow">↕</span></th>
         <th class="num">CARE</th>
+        <th class="num">NIBRS</th>
         <th class="hide-sm">Sources</th>
         <th>Map</th>
         <th>Edit</th>
@@ -487,6 +491,10 @@ footer{margin-top:26px;font-size:.76rem;color:var(--text-faint);text-align:cente
       <div><label for="eLon">Longitude</label><input type="text" id="eLon" inputmode="decimal" placeholder="-90.244"></div>
       <div><label for="eZip">Zip code</label><input type="text" id="eZip" inputmode="numeric" maxlength="5" placeholder="63116"></div>
       <div><label for="eTime">Time <span class="ef-hint">(24h, e.g. 21:30)</span></label><input type="text" id="eTime" placeholder="21:30"></div>
+      <div class="ef-full"><label>Flags</label><div class="flag-field">
+        <label><input type="checkbox" id="eCare" class="care-box"> CARE report completed</label>
+        <label><input type="checkbox" id="eNibrs" class="nibrs-box"> NIBRS</label>
+      </div></div>
     </div>
     <p class="edit-tip">Tip: to get exact coordinates, right-click the spot in Google Maps and click the lat/long numbers to copy them. Your edits are saved on this device and stay put through daily updates.</p>
     <div class="modal-foot">
@@ -778,6 +786,13 @@ const CARE_KEY='stlGunViolence_careReports_v2';
 let careState=null; try{ careState=JSON.parse(localStorage.getItem(CARE_KEY)||'null'); }catch(e){ careState=null; }
 careState=(careState&&typeof careState==='object')?Object.assign({},(SAVED_STATE&&SAVED_STATE.care)||{},careState):Object.assign({},(SAVED_STATE&&SAVED_STATE.care)||{});
 function saveCare(){ try{ localStorage.setItem(CARE_KEY,JSON.stringify(careState)); }catch(e){} }
+const NIBRS_KEY='stlGunViolence_nibrs_v1';
+let nibrsState=null; try{ nibrsState=JSON.parse(localStorage.getItem(NIBRS_KEY)||'null'); }catch(e){ nibrsState=null; }
+nibrsState=(nibrsState&&typeof nibrsState==='object')?Object.assign({},(SAVED_STATE&&SAVED_STATE.nibrs)||{},nibrsState):Object.assign({},(SAVED_STATE&&SAVED_STATE.nibrs)||{});
+function saveNibrs(){ try{ localStorage.setItem(NIBRS_KEY,JSON.stringify(nibrsState)); }catch(e){} }
+// Effective flag = your local override if you've set one, otherwise the value published in the incident data.
+function careOn(r){ return (r.id in careState) ? !!careState[r.id] : !!r.care; }
+function nibrsOn(r){ return (r.id in nibrsState) ? !!nibrsState[r.id] : !!r.nibrs; }
 function renderTable(rows){
   const sorted=rows.slice().sort((a,b)=>{
     let av=a[sortKey],bv=b[sortKey];
@@ -803,7 +818,8 @@ function renderTable(rows){
       <td class="num">${r.killed>0?`<span class="k-num">${r.killed}</span>`:'<span class="zero">0</span>'}</td>
       <td class="num">${r.shot>0?`<span class="s-num">${r.shot}</span>`:'<span class="zero">0</span>'}</td>
       <td class="num hide-sm">${(r.killed+r.shot)>0?`<span class="v-num">${r.killed+r.shot}</span>`:'<span class="zero">0</span>'}</td>
-      <td class="care-cell"><label class="care-wrap"><input type="checkbox" class="care-box" data-id="${r.id}" ${careState[r.id]?'checked':''} aria-label="CARE report for incident ${r.id}"></label></td>
+      <td class="care-cell"><label class="care-wrap"><input type="checkbox" class="care-box" data-id="${r.id}" ${careOn(r)?'checked':''} aria-label="CARE report for incident ${r.id}"></label></td>
+      <td class="care-cell"><label class="care-wrap"><input type="checkbox" class="nibrs-box" data-id="${r.id}" ${nibrsOn(r)?'checked':''} aria-label="NIBRS flag for incident ${r.id}"></label></td>
       <td class="hide-sm"><ul class="src-list">${srcs}</ul></td>
       <td>${r.maps_url?`<a class="maplink" href="${esc(r.maps_url)}" target="_blank" rel="noopener">📍 Map${approx}</a>`:'<span class="zero">—</span>'}</td>
       <td><button class="edit-btn" data-edit="${r.id}" title="Edit location & details">✏️ Edit</button></td>`;
@@ -855,7 +871,7 @@ function exportShareable(){
 
 // ---- save my changes (bakes YOUR CARE flags, corrections & notes into the file so they travel with it across devices) ----
 function exportWithState(){
-  const state={edits:edits,care:careState,notes:userNotes};
+  const state={edits:edits,care:careState,nibrs:nibrsState,notes:userNotes};
   const dyn=['tbody','srcGroups','insights','notesList','map'].map(id=>$(id));
   const snap=dyn.map(el=>el?el.innerHTML:'');
   dyn.forEach(el=>{ if(el) el.innerHTML=''; });
@@ -868,8 +884,8 @@ function exportWithState(){
   const blob=new Blob([src],{type:'text/html'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='STL_Gun_Violence_Tracker.html'; a.click(); URL.revokeObjectURL(a.href);
-  const c=Object.keys(careState).length, ed=Object.keys(edits).length, nt=userNotes.length;
-  alert('Saved ✓  Your changes are baked into the file: '+c+' CARE flag'+(c===1?'':'s')+', '+ed+' correction'+(ed===1?'':'s')+', '+nt+' note'+(nt===1?'':'s')+'.\n\nA file named STL_Gun_Violence_Tracker.html was downloaded. Replace your existing file with it (or copy it to another device) — reopen it anywhere and your flags, corrections and notes will be there.');
+  const c=Object.values(careState).filter(Boolean).length, nb=Object.values(nibrsState).filter(Boolean).length, ed=Object.keys(edits).length, nt=userNotes.length;
+  alert('Saved ✓  Your changes are baked into the file: '+c+' CARE flag'+(c===1?'':'s')+', '+nb+' NIBRS flag'+(nb===1?'':'s')+', '+ed+' correction'+(ed===1?'':'s')+', '+nt+' note'+(nt===1?'':'s')+'.\n\nA file named STL_Gun_Violence_Tracker.html was downloaded. Replace your existing file with it (or copy it to another device) — reopen it anywhere and your flags, corrections and notes will be there.');
 }
 
 // ---- methodology / data sources text ----
@@ -1021,7 +1037,10 @@ document.querySelectorAll('.tab-btn').forEach(b=>b.addEventListener('click',()=>
 // ---- events ----
 ['fJur','fCas','fFrom','fTo'].forEach(id=>$(id).addEventListener('change',()=>{ syncChips(); refresh(); }));
 $('fSearch').addEventListener('input',refresh);
-$('tbody').addEventListener('change',e=>{ const box=e.target.closest('.care-box'); if(!box) return; const id=box.dataset.id; if(box.checked) careState[id]=true; else delete careState[id]; saveCare(); });
+$('tbody').addEventListener('change',e=>{
+  const care=e.target.closest('.care-box'); if(care){ careState[care.dataset.id]=care.checked; saveCare(); return; }
+  const nib=e.target.closest('.nibrs-box'); if(nib){ nibrsState[nib.dataset.id]=nib.checked; saveNibrs(); return; }
+});
 
 // ---- incident editor ----
 let editingId=null;
@@ -1032,6 +1051,7 @@ function openEditor(id){
   $('eLoc').value=cur.location||''; $('eMuni').value=cur.municipality||''; $('eDesc').value=cur.description||'';
   $('eLat').value=(cur.lat!=null?cur.lat:''); $('eLon').value=(cur.lon!=null?cur.lon:'');
   $('eZip').value=(cur.zip||''); $('eTime').value=(cur.time||'');
+  $('eCare').checked=careOn(base); $('eNibrs').checked=nibrsOn(base);
   $('editRestore').style.display=edits[id]?'inline-block':'none';
   $('editOverlay').classList.add('open');
   setTimeout(()=>$('eLoc').focus(),30);
@@ -1057,6 +1077,8 @@ $('editSave').addEventListener('click',()=>{
     if(isNaN(la)||isNaN(lo)||la<36||la>41||lo<-92||lo>-88){ alert('Please enter valid latitude (36–41) and longitude (-92 to -88) for the St. Louis region, or leave both blank.'); return; }
     if(la!==base.lat||lo!==base.lon){ e.lat=la; e.lon=lo; } }
   if(Object.keys(e).length) edits[editingId]=Object.assign(edits[editingId]||{},e);
+  careState[editingId]=$('eCare').checked; saveCare();
+  nibrsState[editingId]=$('eNibrs').checked; saveNibrs();
   saveEdits(); closeEditor(); refresh();
 });
 $('editRestore').addEventListener('click',()=>{ if(editingId==null) return; delete edits[editingId]; saveEdits(); closeEditor(); refresh(); });
